@@ -51,7 +51,7 @@
 /* Timing */
 #define POLL_INTERVAL   1       /* Seconds between updates */
 
-/* Per-fan state for independent control */
+/* Unified fan state (both fans follow max temp due to shared heatpipes) */
 struct fan_state {
     int current;        /* Current speed */
     int prev_target;    /* Previous target for trend */
@@ -60,8 +60,7 @@ struct fan_state {
 /* State */
 static volatile sig_atomic_t running = 1;
 static int interactive = 0;
-static struct fan_state cpu_fan = {0, -1};
-static struct fan_state gpu_fan = {0, -1};
+static struct fan_state unified_fan = {0, -1};
 static char hwmon_cpu[384] = {0};
 static char hwmon_gpu[384] = {0};
 
@@ -267,12 +266,12 @@ static void print_banner(void)
 	printf("\n");
 	printf("  CPU sensor: %s\n", hwmon_cpu[0] ? hwmon_cpu : "EC fallback");
 	printf("  GPU sensor: %s\n", hwmon_gpu[0] ? hwmon_gpu : "none");
-	printf("  Mode: Independent (CPU fan follows CPU temp, GPU fan follows GPU temp)\n");
+	printf("  Mode: Unified (both fans follow max temp - shared heatpipes)\n");
 	printf("\n");
 	printf("  Trend: ^ = ramping up, v = slowing down, = = steady\n");
 	printf("  Ctrl+C to stop and restore automatic control\n");
 	printf("\n");
-	printf("Time     |     | Tmp | Fan\n");
+	printf("Time     | CPU | GPU | Fan\n");
 	printf("---------|-----|-----|-------\n");
 }
 
@@ -315,9 +314,9 @@ static void usage(const char *prog)
 
 int main(int argc, char *argv[])
 {
-    int cpu_temp, gpu_temp;
-    int cpu_target, gpu_target;
-    int cpu_actual, gpu_actual;
+    int cpu_temp, gpu_temp, max_temp;
+    int target;
+    int fan1_actual, fan2_actual;
     time_t now;
     struct tm *tm_info;
     struct timespec ts;
@@ -354,8 +353,8 @@ int main(int argc, char *argv[])
 
     if (interactive) {
         print_banner();
-        /* Print initial blank lines for cursor-up to work */
-        printf("\n\n");
+        /* Print initial blank line for cursor-up to work */
+        printf("\n");
     } else {
         printf("Starting fan control daemon...\n");
     }
@@ -367,25 +366,26 @@ int main(int argc, char *argv[])
     while (running) {
         get_temp(&cpu_temp, &gpu_temp);
 
-        /* Read current fan speeds */
-        cpu_actual = sysfs_read_int(SYSFS_FAN1);
-        if (cpu_actual < 0)
-            cpu_actual = 0;
-        gpu_actual = sysfs_read_int(SYSFS_FAN2);
-        if (gpu_actual < 0)
-            gpu_actual = 0;
+        /* Use max temp - shared heatpipes means both components heat each other */
+        max_temp = (cpu_temp > gpu_temp) ? cpu_temp : gpu_temp;
 
-        /* Update fan state with current readings */
-        cpu_fan.current = cpu_actual;
-        gpu_fan.current = gpu_actual;
+        /* Read current fan speed (use fan1 as reference, both should be same) */
+        fan1_actual = sysfs_read_int(SYSFS_FAN1);
+        if (fan1_actual < 0)
+            fan1_actual = 0;
+        fan2_actual = sysfs_read_int(SYSFS_FAN2);
+        if (fan2_actual < 0)
+            fan2_actual = 0;
 
-        /* Calculate independent targets */
-        cpu_target = calc_target(cpu_temp, &cpu_fan);
-        gpu_target = calc_target(gpu_temp, &gpu_fan);
+        /* Update unified fan state with current reading (average of both) */
+        unified_fan.current = (fan1_actual + fan2_actual) / 2;
 
-        /* Write to fans independently */
-        sysfs_write_int(SYSFS_FAN1, cpu_target);
-        sysfs_write_int(SYSFS_FAN2, gpu_target);
+        /* Calculate unified target based on max temp */
+        target = calc_target(max_temp, &unified_fan);
+
+        /* Write same speed to both fans */
+        sysfs_write_int(SYSFS_FAN1, target);
+        sysfs_write_int(SYSFS_FAN2, target);
 
         /* Display */
         if (interactive) {
@@ -393,17 +393,14 @@ int main(int argc, char *argv[])
             tm_info = localtime(&now);
             strftime(time_buf, sizeof(time_buf), "%H:%M:%S", tm_info);
 
-            /* Move cursor up 2 lines and overwrite */
-            printf("\033[2A");
-            printf("%s | CPU | %3d | %3d%% %s\n",
+            /* Move cursor up 1 line and overwrite */
+            printf("\033[1A");
+            printf("%s | %3d | %3d | %3d%% %s\n",
                    time_buf,
                    cpu_temp,
-                   cpu_target * 100 / 200,
-                   get_trend(cpu_target, &cpu_fan.prev_target));
-            printf("         | GPU | %3d | %3d%% %s\n",
                    gpu_temp,
-                   gpu_target * 100 / 200,
-                   get_trend(gpu_target, &gpu_fan.prev_target));
+                   target * 100 / 200,
+                   get_trend(target, &unified_fan.prev_target));
             fflush(stdout);
         }
 

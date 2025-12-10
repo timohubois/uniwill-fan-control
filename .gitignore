@@ -1,0 +1,25 @@
+# Build artifacts
+*.o
+*.ko
+*.mod
+*.mod.c
+*.order
+*.symvers
+.*.cmd
+.*.o.cmd
+.tmp_versions/
+modules.builtin
+Module.symvers
+
+# Compiled binaries
+uniwill-fanctl
+
+# Editor
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# OS
+.DS_Store

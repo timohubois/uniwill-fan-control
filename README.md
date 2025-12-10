@@ -98,7 +98,7 @@ Fan %
 ### Prerequisites
 
 ```bash
-sudo pacman -S base-devel linux-headers
+sudo pacman -S base-devel linux-headers dkms
 ```
 
 ### Step 1: Build and Test the Module
@@ -136,23 +136,31 @@ You should see temperature and fan speed updating. Run `./uniwill-fanctl -h` for
 
 ### Step 3: Install Permanently
 
+#### Option A: DKMS (Recommended)
+
+DKMS automatically rebuilds the module when you update your kernel:
+
 ```bash
-sudo make install-all
+sudo make uniwill-fan-control-install-dkms
+sudo systemctl enable --now uniwill-fan.service
 ```
 
-This will:
+#### Option B: Manual Installation
 
-1. Install the kernel module
-2. Set it to load on boot
-3. Install and enable the fan control service
+Without DKMS, you'll need to rebuild manually after kernel updates:
 
-### Manual Installation
+```bash
+sudo make install-all
+sudo systemctl enable --now uniwill-fan.service
+```
+
+### Manual Installation (Step-by-Step)
 
 If you prefer step-by-step:
 
 ```bash
-# Install module permanently
-sudo make install
+# Install module via DKMS (or use 'make install' for non-DKMS)
+sudo make uniwill-fan-control-dkms-install
 
 # Auto-load on boot
 sudo make install-autoload
@@ -225,6 +233,14 @@ sudo make install-service
 ```
 
 ## Uninstallation
+
+### DKMS
+
+```bash
+sudo make uniwill-fan-control-uninstall-dkms
+```
+
+### Non-DKMS
 
 ```bash
 sudo make uninstall-all

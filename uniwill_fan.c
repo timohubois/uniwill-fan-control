@@ -22,7 +22,7 @@
 
 MODULE_DESCRIPTION("Minimal fan control for Uniwill/TUXEDO laptops");
 MODULE_AUTHOR("Community");
-MODULE_VERSION("0.2.0");
+MODULE_VERSION("0.1.0");
 MODULE_LICENSE("GPL");
 
 /* WMI GUIDs for Uniwill laptops */

@@ -100,7 +100,7 @@ uniwill-ibg10-fanctl-dkms-install: daemon
 	@echo "obj-m += uniwill_ibg10_fanctl.o" > $(DKMS_SRC)/Makefile
 	dkms add -m $(DKMS_NAME) -v $(DKMS_VERSION)
 	dkms build -m $(DKMS_NAME) -v $(DKMS_VERSION)
-	dkms install -m $(DKMS_NAME) -v $(DKMS_VERSION)
+	dkms install -m $(DKMS_NAME) -v $(DKMS_VERSION) --force
 	@echo ""
 	@echo "=== DKMS Installation Complete ==="
 	@echo "Module will auto-rebuild on kernel updates."
